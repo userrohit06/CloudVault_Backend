@@ -8,6 +8,9 @@ export const connectDB = async () => {
     logger.info(`DB Connected: ${connection.connection.host}`);
   } catch (error) {
     logger.error(`DB Error: ${error.message}`);
-    process.exit(1);
+
+    setTimeout(() => {
+      process.exit(1);
+    }, 500);
   }
 };

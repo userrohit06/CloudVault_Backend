@@ -5,3 +5,6 @@ dist
 build
 dist/
 build/
+logs
+logs/
+logs/*
