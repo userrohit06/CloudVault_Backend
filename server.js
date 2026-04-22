@@ -4,6 +4,9 @@ import { connectDB } from "./config/db.js";
 import { globalErrorHandler } from "./middlewares/globalErrorHandler.js";
 import morgan from "morgan";
 
+// routes
+import userRoutes from "./routes/auth.route.js";
+
 dotenv.config();
 
 const app = express();
@@ -14,6 +17,8 @@ app.use(express.json());
 const PORT = process.env.PORT;
 
 connectDB();
+
+app.use("/api/v1/auth", userRoutes);
 
 app.use(globalErrorHandler);
 
