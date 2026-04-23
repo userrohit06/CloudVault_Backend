@@ -78,8 +78,7 @@ export const signin = async (req, res) => {
 
   const JWT_SECRET_KEY = process.env.JWT_SECRET_KEY;
 
-  // generate token
-  const token = jwt.sign(
+  const accessToken = jwt.sign(
     {
       userId: existingUser._id,
       email: existingUser.email,
@@ -87,28 +86,106 @@ export const signin = async (req, res) => {
     },
     JWT_SECRET_KEY,
     {
-      expiresIn: "10m",
+      expiresIn: "10s",
     },
   );
 
-  res.cookie("token", token, {
+  const refreshToken = jwt.sign(
+    {
+      userId: existingUser._id,
+      email: existingUser.email,
+      isActive: existingUser.isActive,
+    },
+    JWT_SECRET_KEY,
+    {
+      expiresIn: "7d",
+    },
+  );
+
+  existingUser.refreshToken = refreshToken;
+  await existingUser.save();
+
+  res.cookie("token", accessToken, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "PRODUCTION",
+    secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
-    maxAge: 10 * 60 * 1000,
+    maxAge: 10 * 1000,
+  });
+
+  res.cookie("refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
   res.status(200).json({
-    success: false,
+    success: true,
     message: "Login successful!",
   });
 };
 
 export const logout = async (req, res) => {
+  const user = await User.findById(req.user._id);
+  user.refreshToken = null;
+  await user.save();
+
   res.clearCookie("token");
+  res.clearCookie("refreshToken");
 
   res.status(200).json({
     success: true,
     message: "User logged out successfully!",
   });
+};
+
+export const refreshToken = async (req, res) => {
+  const refreshToken = req.cookies.refreshToken;
+
+  if (!refreshToken) {
+    const error = new Error("No refresh token");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  try {
+    const JWT_SECRET_KEY = process.env.JWT_SECRET_KEY;
+
+    const decoded = jwt.verify(refreshToken, JWT_SECRET_KEY);
+    const user = await User.findById(decoded.userId);
+
+    if (!user || user.refreshToken !== refreshToken) {
+      const error = new Error("Invalid refresh token!");
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const newAccessToken = jwt.sign(
+      {
+        userId: user._id,
+        email: user.email,
+        isActive: user.isActive,
+      },
+      JWT_SECRET_KEY,
+      {
+        expiresIn: "10s",
+      },
+    );
+
+    res.cookie("token", newAccessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 10 * 1000,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Token refresh successfully!",
+    });
+  } catch (err) {
+    const error = new Error(err.message || "Invalid or expired refresh token");
+    error.statusCode = 403;
+    throw error;
+  }
 };
