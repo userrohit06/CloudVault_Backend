@@ -4,7 +4,6 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import {
   forgotPasswordToken,
   logout,
-  protectedRoute,
   refreshToken,
   resetPasswordToken,
   sendOtp,

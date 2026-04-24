@@ -79,6 +79,12 @@ export const signin = async (req, res) => {
     throw error;
   }
 
+  if (!existingUser.isActive) {
+    const error = new Error("This user has been deactivated!");
+    error.statusCode = 400;
+    throw error;
+  }
+
   const JWT_SECRET_KEY = process.env.JWT_SECRET_KEY;
 
   const accessToken = jwt.sign(
@@ -112,7 +118,7 @@ export const signin = async (req, res) => {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
-    maxAge: 10 * 1000,
+    maxAge: 10 * 60 * 1000,
   });
 
   res.cookie("refreshToken", refreshToken, {
@@ -179,7 +185,7 @@ export const refreshToken = async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 10 * 1000,
+      maxAge: 10 * 60 * 1000,
     });
 
     res.status(200).json({

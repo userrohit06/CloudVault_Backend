@@ -30,6 +30,12 @@ export const verifyToken = async (req, res, next) => {
       return next(error);
     }
 
+    if (!user.isActive) {
+      const error = new Error("This user has been deactivated!");
+      error.statusCode = 400;
+      return next(error);
+    }
+
     req.user = user;
     next();
   } catch (err) {
