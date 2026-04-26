@@ -90,12 +90,6 @@ export const inviteMember = async (req, res) => {
     user: userId,
   });
 
-  if (!member || !["owner", "admin"].includes(member.role)) {
-    const error = new Error("Not allowed to create an invite!");
-    error.statusCode = 409;
-    throw error;
-  }
-
   const alreadyMember = await WorkspaceMember.findOne({
     workspace: workspaceId,
     user: userToId,
@@ -156,7 +150,7 @@ export const acceptInvite = async (req, res) => {
       throw error;
     }
 
-    const workspace = await Workspace.findById(invite.workspace).sesssion(
+    const workspace = await Workspace.findById(invite.workspace).session(
       session,
     );
     if (!workspace || workspace.isDeleted) {
