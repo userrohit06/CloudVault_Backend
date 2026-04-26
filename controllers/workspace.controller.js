@@ -45,7 +45,7 @@ export const createWorkspace = async (req, res, next) => {
     await session.commitTransaction();
 
     res.status(201).json({
-      succcess: true,
+      success: true,
       message: "Workspace created successfully!",
       data: workspace[0],
     });
@@ -208,6 +208,38 @@ export const acceptInvite = async (req, res) => {
   }
 };
 
+// ----- REJECT INVITE -----
+export const rejectInvite = async (req, res) => {
+  const userId = req.user._id;
+  const { workspaceId } = req.body;
+
+  const workspace = await Workspace.findById(workspaceId);
+  if (!workspace || workspace.isDeleted) {
+    const error = new Error("Workspace not found!");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const invite = await Invite.findOne({
+    workspace: workspaceId,
+    invitedTo: userId,
+  });
+
+  if (!invite || invite.status !== "pending") {
+    const error = new Error("Invalid rejection!");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  invite.status = "rejected";
+  await invite.save();
+
+  res.status(200).json({
+    success: true,
+    message: "Invite rejected!",
+  });
+};
+
 // ----- LEAVE WORKSPACE -----
 export const leaveWorkspace = async (req, res) => {
   const { workspaceId } = req.body;
@@ -262,6 +294,66 @@ export const leaveWorkspace = async (req, res) => {
     await session.abortTransaction();
     const error = new Error(e.message || "Error leaving workpsace");
     error.statusCode = 400;
+    throw error;
+  } finally {
+    session.endSession();
+  }
+};
+
+// ----- DELETE WORKSPACE -----
+export const deleteWorkspace = async (req, res) => {
+  const session = await mongoose.startSession();
+
+  try {
+    session.startTransaction();
+
+    const userId = req.user._id;
+    const { workspaceId } = req.body;
+
+    // find workspace
+    const workspace = await Workspace.findById(workspaceId).session(session);
+    if (!workspace || workspace.isDeleted) {
+      const error = "Workspace not found or has been deleted!";
+      error.statusCode = 404;
+      throw error;
+    }
+
+    // only owner can delete
+    if (workspace.owner.toString() !== userId.toString()) {
+      const error = new Error("Only owner can delete workspace!");
+      error.statusCode = 403;
+      throw error;
+    }
+
+    // soft delete workspace
+    workspace.isDeleted = true;
+    await workspace.save({ session });
+
+    // mark invites as rejected
+    await Invite.updateMany(
+      { workspace: workspaceId },
+      { status: "rejected" },
+      { session },
+    );
+
+    // remove members
+    await WorkspaceMember.deleteMany({ workspace: workspaceId }, { session });
+
+    await session.commitTransaction();
+
+    emitWorkspaceEvent(req.io, workspaceId, "workspace:deleted", {
+      workspaceId,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Workspace has been deleted",
+    });
+  } catch (err) {
+    await session.abortTransaction();
+
+    const error = new Error(err.message || "Error deleting workspace");
+    error.statusCode = 500;
     throw error;
   } finally {
     session.endSession();

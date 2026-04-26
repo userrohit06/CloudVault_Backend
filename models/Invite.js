@@ -22,9 +22,6 @@ const inviteSchema = new mongoose.Schema(
       enum: ["pending", "accepted", "rejected"],
       required: true,
     },
-    expiresAt: {
-      type: Date,
-    },
   },
   {
     timestamps: true,
